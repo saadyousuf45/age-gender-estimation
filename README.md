@@ -2,6 +2,10 @@
 This is a Keras implementation of a CNN for estimating age and gender from a face image [1, 2].
 In training, [the IMDB-WIKI dataset](https://data.vision.ee.ethz.ch/cvl/rrothe/imdb-wiki/) is used.
 
+- [Nov. 12, 2018] Enable Adam optimizer; seems to be better than momentum SGD
+- [Sep. 23, 2018] Demo from directory
+- [Aug. 11, 2018] Add age estimation sub-project [here](age_estimation)
+- [Jul. 5, 2018] The UTKFace dataset became available for training.
 - [Apr. 10, 2018] Evaluation result on the APPA-REAL dataset was added.
 
 ## Dependencies
@@ -20,7 +24,8 @@ Tested on:
 ## Usage
 
 ### Use pretrained model for demo
-Run demo the script (requires web cam)
+Run the demo script (requires web cam).
+You can use `--image_dir [IMAGE_DIR]` option to use images in the `[IMAGE_DIR]` directory instead.
 
 ```sh
 python3 demo.py
@@ -28,18 +33,18 @@ python3 demo.py
 
 The pretrained model for TensorFlow backend will be automatically downloaded to the `pretrained_models` directory.
 
-### Train a model using the IMDB-WIKI dataset
-
-#### Download the dataset
-The dataset is downloaded and extracted to the `data` directory.
+### Create training data from the IMDB-WIKI dataset
+First, download the dataset.
+The dataset is downloaded and extracted to the `data` directory by:
 
 ```sh
 ./download.sh
 ```
 
-#### Create training data
-Filter out noise data and serialize images and labels for training into `.mat` file.
+Secondly, filter out noise data and serialize images and labels for training into `.mat` file.
 Please check [check_dataset.ipynb](check_dataset.ipynb) for the details of the dataset.
+The training data is created by:
+
 ```sh
 python3 create_db.py --output data/imdb_db.mat --db imdb --img_size 64
 ```
@@ -57,7 +62,32 @@ optional arguments:
   --min_score MIN_SCORE      minimum face_score (default: 1.0)
 ```
 
-#### Train network
+### Create training data from the UTKFace dataset
+Firstly, download images from [the website of the UTKFace dataset](https://susanqq.github.io/UTKFace/).
+`UTKFace.tar.gz` can be downloaded from `Aligned&Cropped Faces` in Datasets section.
+Then, extract the archive.
+
+```sh
+tar zxf UTKFace.tar.gz UTKFace
+```
+
+Finally, run the following script to create the training data:
+
+```
+python3 create_db_utkface.py -i UTKFace -o UTKFace.mat
+```
+
+[NOTE]: Because the face images in the UTKFace dataset is tightly cropped (there is no margin around the face region),
+faces should also be cropped in `demo.py` if weights trained by the UTKFace dataset is used.
+Please set the margin argument to 0 for tight cropping:
+
+```sh
+python3 demo.py --weight_file WEIGHT_FILE --margin 0
+```
+
+The pre-trained weights can be found [here](https://github.com/yu4u/age-gender-estimation/releases/download/v0.5/weights.29-3.76_utk.hdf5).
+
+### Train network
 Train the network using the training data created above.
 
 ```sh
@@ -68,8 +98,9 @@ Trained weight files are stored as `checkpoints/weights.*.hdf5` for each epoch i
 
 ```sh
 usage: train.py [-h] --input INPUT [--batch_size BATCH_SIZE]
-                [--nb_epochs NB_EPOCHS] [--depth DEPTH] [--width WIDTH]
-                [--validation_split VALIDATION_SPLIT] [--aug]
+                [--nb_epochs NB_EPOCHS] [--lr LR] [--opt OPT] [--depth DEPTH]
+                [--width WIDTH] [--validation_split VALIDATION_SPLIT] [--aug]
+                [--output_path OUTPUT_PATH]
 
 This script trains the CNN model for age and gender estimation.
 
@@ -81,15 +112,19 @@ optional arguments:
                         batch size (default: 32)
   --nb_epochs NB_EPOCHS
                         number of epochs (default: 30)
+  --lr LR               initial learning rate (default: 0.1)
+  --opt OPT             optimizer name; 'sgd' or 'adam' (default: sgd)
   --depth DEPTH         depth of network (should be 10, 16, 22, 28, ...)
                         (default: 16)
   --width WIDTH         width of network (default: 8)
   --validation_split VALIDATION_SPLIT
                         validation split ratio (default: 0.1)
   --aug                 use data augmentation if set true (default: False)
+  --output_path OUTPUT_PATH
+                        checkpoint dir (default: checkpoints)
 ```
 
-#### Train network with recent data augmentation methods
+### Train network with recent data augmentation methods
 Recent data augmentation methods, mixup [3] and Random Erasing [4],
 can be used with standard data augmentation by `--aug` option in training:
 
@@ -103,40 +138,46 @@ I confirmed that data augmentation enables us to avoid overfitting
 and improves validation loss.
 
 
-#### Use the trained network
+### Use the trained network
 
 ```sh
 python3 demo.py
 ```
 
 ```sh
-usage: demo.py [-h] [--weight_file WEIGHT_FILE] [--depth DEPTH] [--width WIDTH]
+usage: demo.py [-h] [--weight_file WEIGHT_FILE] [--depth DEPTH]
+               [--width WIDTH] [--margin MARGIN] [--image_dir IMAGE_DIR]
 
 This script detects faces from web cam input, and estimates age and gender for
 the detected faces.
 
 optional arguments:
-  -h, --help                show this help message and exit
-  --weight_file WEIGHT_FILE path to weight file (e.g. weights.18-4.06.hdf5) (default: None)
-  --depth DEPTH             depth of network (default: 16)
-  --width WIDTH             width of network (default: 8)
-
+  -h, --help            show this help message and exit
+  --weight_file WEIGHT_FILE
+                        path to weight file (e.g. weights.28-3.73.hdf5)
+                        (default: None)
+  --depth DEPTH         depth of network (default: 16)
+  --width WIDTH         width of network (default: 8)
+  --margin MARGIN       width of network (default: 0.4)
+  --image_dir IMAGE_DIR
+                        target image directory; if set, images in image_dir
+                        are used instead of webcam (default: None)
 ```
 
 Please use the best model among `checkpoints/weights.*.hdf5` for `WEIGHT_FILE` if you use your own trained models.
 
-#### Plot training curves from history file
+### Plot training curves from history file
 
 ```sh
 python3 plot_history.py --input models/history_16_8.h5 
 ```
 
-##### Results without data augmentation
+#### Results without data augmentation
 <img src="https://github.com/yu4u/age-gender-estimation/wiki/images/loss.png" width="400px">
 
 <img src="https://github.com/yu4u/age-gender-estimation/wiki/images/accuracy.png" width="400px">
 
-##### Results with data augmentation
+#### Results with data augmentation
 The best val_loss was improved from 3.969 to 3.731:
 - Without data augmentation: 3.969
 - With standard data augmentation: 3.799
@@ -147,14 +188,14 @@ The best val_loss was improved from 3.969 to 3.731:
 We can see that, with data augmentation,
 overfitting did not occur even at very small learning rates (epoch > 15).
 
-#### Network architecture
+### Network architecture
 In [the original paper](https://www.vision.ee.ethz.ch/en/publications/papers/articles/eth_biwi_01299.pdf) [1, 2], the pretrained VGG network is adopted.
 Here the Wide Residual Network (WideResNet) is trained from scratch.
 I modified the @asmith26's implementation of the WideResNet; two classification layers (for age and gender estimation) are added on the top of the WideResNet.
 
 Note that while age and gender are independently estimated by different two CNNs in [1, 2], in my implementation, they are simultaneously estimated using a single CNN.
 
-#### Estimated results
+### Estimated results
 Trained on imdb, tested on wiki.
 ![](https://github.com/yu4u/age-gender-estimation/wiki/images/result.png)
 
