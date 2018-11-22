@@ -45,8 +45,8 @@ def video_capture(*args, **kwargs):
 def yield_images():
     # capture video
     with video_capture(0) as cap:
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
         while True:
             # get video frame
